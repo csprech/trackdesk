@@ -1,0 +1,4 @@
+build/
+build-release/
+external/
+.DS_Store

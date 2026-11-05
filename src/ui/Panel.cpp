@@ -155,7 +155,7 @@ Knob& Panel::addKnob (P c, float d, juce::Colour cap, float dflt, std::function<
 PushKey& Panel::addKey (P c, P size, PushKey::Style style, const juce::String& glyph)
 {
     auto k = std::make_unique<PushKey> (style, glyph);
-    k->setBounds (R (size.x + 6.0f, size.y + 8.0f).withCentre (c.translated (1.5f, 2.5f)).toNearestInt());
+    k->setBounds (PushKey::boundsFor (R (size.x, size.y).withCentre (c), style)); // (the face at rest centred on c)
     auto* raw = k.get();
     keys.push_back (raw);
     addAndMakeVisible (*k);
@@ -180,7 +180,9 @@ Fader& Panel::addFader (float x, juce::Colour cap, std::function<float()> get, s
     auto f = std::make_unique<Fader> (cap);
     f->get = std::move (get);
     f->set = std::move (set);
-    f->setBounds (R (x - 30.0f, kFaderTop - f->capH * 0.5f, 60.0f, kFaderBottom - kFaderTop + f->capH).toNearestInt());
+    f->setBounds (R (x - Fader::halfWidth, kFaderTop - Fader::capH * 0.5f - Fader::padTop, Fader::halfWidth * 2.0f,
+                     kFaderBottom - kFaderTop + Fader::capH + Fader::padTop + Fader::padBottom)
+                      .toNearestInt());
     auto* raw = f.get();
     faders.push_back (raw);
     addAndMakeVisible (*f);
@@ -1164,6 +1166,47 @@ void Panel::paintBackground (juce::Graphics& g)
         g.setFont (panelFont (54.0f));
         g.drawText ("TD-12", R (1090.0f, 58.0f, 290.0f, 60.0f), J::centredRight);
         text (g, "MIXER / RECORDER / INTERFACE", 1270.0f, 122.0f, 8.0f, kPrint, false, 220.0f);
+    }
+
+    // ---------------------------------------------------------------- what stands on the panel casts shadows
+    // (static, so drawn here as on the other devices: nothing clips them, and the widgets only draw what moves)
+    auto onLight = [] (P p) {
+        // the gold, blue and white areas take a lighter shadow than the black and slate ones
+        for (R r : { R (965.0f, 140.0f, 417.0f, 253.0f), R (1176.0f, 811.0f, 206.0f, 84.0f), R (1276.0f, 902.0f, 106.0f, 610.0f),
+                     R (965.0f, 1110.0f, 308.0f, 402.0f) })
+            if (r.contains (p))
+                return true;
+        return false;
+    };
+    if (jog != nullptr)
+    {
+        // the MULTI JOG's recess, and the knob's shadow in it
+        const auto k = jog->knobArea() + jog->getPosition().toFloat();
+        const auto recess = k.expanded (k.getWidth() * 0.08f / 0.84f);
+        g.setColour (juce::Colour (0xff060607));
+        g.fillEllipse (recess);
+        g.setColour (juce::Colours::white.withAlpha (0.08f));
+        g.drawEllipse (recess.reduced (1.0f), 1.0f);
+        m::roundShadow (g, k.getCentre(), k.getWidth() * 0.48f, k.getWidth() * 0.2f, 0.8f);
+    }
+    for (auto* k : knobs)
+    {
+        // the knobs stand tall on the panel: a soft shadow falling down-right from the top-left light
+        const auto f = k->face() + k->getPosition().toFloat();
+        m::roundShadow (g, f.getCentre(), f.getWidth() * 0.48f, f.getWidth() * 0.24f, onLight (f.getCentre()) ? 0.75f : 0.9f);
+    }
+    for (auto* k : keys)
+    {
+        // every key stands in a well, its shadow falling down-right
+        const auto f = k->faceArea() + k->getPosition().toFloat();
+        const float corner = k->faceCorner(), depth = k->extrusion();
+        const bool light = onLight (f.getCentre());
+        const auto base = f.withBottom (f.getBottom() + depth); // its footprint, seen from above at a slight tilt
+        juce::Path p;
+        p.addRoundedRectangle (base.translated (1.5f, 1.0f), corner);
+        juce::DropShadow (juce::Colours::black.withAlpha (light ? 0.40f : 0.55f), (int) (depth + 4.0f), { 2, 3 }).drawForPath (g, p);
+        g.setColour (juce::Colours::black.withAlpha (light ? 0.35f : 0.6f)); // the gap round it in the panel
+        g.fillRoundedRectangle (base.expanded (1.6f), corner + 1.6f);
     }
 }
 } // namespace trackdesk::ui

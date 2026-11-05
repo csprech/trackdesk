@@ -3,6 +3,10 @@
 // The panel's parts: knobs, faders, push switches, LEDs, slide switches, the display, the level meter and the
 // MULTI JOG dial. Each reads and writes the console through small functions, and repaints when what it shows
 // changes (refresh() is called by the panel's timer).
+//
+// As on the other devices, shadows that don't move (knobs, keys and their wells, the dial) are drawn by the panel's
+// background from knob faces and key footprints, so nothing clips them; the widgets draw only what moves or lights.
+// A fader's cap moves, so it draws its own soft shadow, with room for it in its bounds.
 
 #include "../core/Lcd.h"
 #include "Materials.h"
@@ -46,9 +50,12 @@ public:
     std::function<void (float)> set;
     void refresh();
     juce::Colour cap;
-    float capW = 46.0f, capH = 78.0f;
+    static constexpr float capW = 46.0f, capH = 78.0f;
+    /** Room round the travel for the cap's shadow (it falls down and to the right). */
+    static constexpr float padTop = 8.0f, padBottom = 16.0f, halfWidth = 44.0f;
 
     void paint (juce::Graphics&) override;
+    bool hitTest (int x, int y) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
@@ -80,6 +87,15 @@ public:
     Style style;
     juce::String glyph;
     juce::Colour lampColour { 0xffff3b30 };
+
+    /** An extruded key: the face on top of its walls, which show below it (seen from above at a slight tilt). */
+    static constexpr float kMargin = 3.0f;
+    static float extrusionFor (Style s) { return s == Style::Transport ? 6.0f : s == Style::Dark ? 4.0f : 5.0f; }
+    /** The bounds for a key whose face (at rest) is `face`. */
+    static juce::Rectangle<int> boundsFor (juce::Rectangle<float> face, Style s);
+    float extrusion() const { return extrusionFor (style); }
+    juce::Rectangle<float> faceArea() const;
+    float faceCorner() const { return 3.5f; }
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -156,6 +172,8 @@ class JogDial : public juce::Component
 public:
     std::function<void (int)> turn;
     std::function<void()> push, unpush;
+    /** The knob within the dial's recess (the recess and the knob's shadow are the panel's). */
+    juce::Rectangle<float> knobArea() const;
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;

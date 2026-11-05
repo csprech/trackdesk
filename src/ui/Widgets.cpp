@@ -1,4 +1,5 @@
 #include "Widgets.h"
+#include "../core/Model.h"
 
 namespace trackdesk::ui
 {
@@ -56,8 +57,7 @@ void Knob::paint (juce::Graphics& g)
 {
     const float v = get ? get() : 0.0f;
     shown = v;
-    const auto f = face();
-    m::roundShadow (g, f.getCentre(), f.getWidth() * 0.5f, f.getWidth() * 0.32f, 0.9f);
+    const auto f = face(); // (its shadow is on the panel)
     const float scale = m::scaleOf (g);
     const int px = juce::roundToInt (f.getWidth() * scale);
     // the angle in steps of a degree: enough to look smooth, few enough to cache
@@ -109,8 +109,14 @@ void Fader::refresh()
 
 float Fader::yFor (float v) const
 {
-    const float top = capH * 0.5f, bottom = (float) getHeight() - capH * 0.5f;
+    const float top = padTop + capH * 0.5f, bottom = (float) getHeight() - padBottom - capH * 0.5f;
     return bottom - (bottom - top) * juce::jlimit (0.0f, 1.0f, v);
+}
+
+bool Fader::hitTest (int x, int)
+{
+    // the bounds leave room for the shadow; only the slot's column takes the mouse
+    return std::abs ((float) x - getWidth() * 0.5f) <= capW * 0.5f + 4.0f;
 }
 
 void Fader::paint (juce::Graphics& g)
@@ -119,7 +125,7 @@ void Fader::paint (juce::Graphics& g)
     shown = v;
     const float cx = getWidth() * 0.5f;
     // the slot: a dark slit with a lit lower lip
-    const float slotTop = capH * 0.5f - 6.0f, slotBottom = (float) getHeight() - capH * 0.5f + 6.0f;
+    const float slotTop = yFor (1.0f) - 6.0f, slotBottom = yFor (0.0f) + 6.0f;
     juce::Rectangle<float> slot (cx - 3.5f, slotTop, 7.0f, slotBottom - slotTop);
     g.setColour (juce::Colour (0xff050506));
     g.fillRoundedRectangle (slot, 3.0f);
@@ -127,13 +133,13 @@ void Fader::paint (juce::Graphics& g)
     g.drawLine (slot.getRight() + 0.5f, slot.getY() + 3, slot.getRight() + 0.5f, slot.getBottom() - 3, 1.0f);
     g.setColour (juce::Colours::black.withAlpha (0.6f));
     g.drawLine (slot.getX() - 0.5f, slot.getY() + 3, slot.getX() - 0.5f, slot.getBottom() - 3, 1.0f);
-    // the cap and its shadow
+    // the cap stands on its lever above the panel: a soft shadow cast down-right, a tight one where it's closest
     const float cy = yFor (v);
     juce::Rectangle<float> capR (cx - capW * 0.5f, cy - capH * 0.5f, capW, capH);
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.fillRoundedRectangle (capR.translated (5.0f, 7.0f).expanded (2.0f), 6.0f);
-    g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.fillRoundedRectangle (capR.translated (2.0f, 3.0f).expanded (1.0f), 5.0f);
+    juce::Path foot;
+    foot.addRoundedRectangle (capR.translated (1.5f, 1.0f), 6.0f);
+    juce::DropShadow (juce::Colours::black.withAlpha (0.55f), 12, { 3, 6 }).drawForPath (g, foot);
+    juce::DropShadow (juce::Colours::black.withAlpha (0.35f), 4, { 1, 2 }).drawForPath (g, foot);
     const float scale = m::scaleOf (g);
     const int w = juce::roundToInt (capW * scale), h = juce::roundToInt (capH * scale);
     m::drawAt (g, m::cached ("fadercap" + juce::String (w) + "x" + juce::String (h) + cap.toString(), [&] { return m::faderCap (w, h, cap); }), capR);
@@ -145,7 +151,7 @@ void Fader::mouseDown (const juce::MouseEvent& e)
     const float v = get ? get() : 0.0f;
     if (std::abs ((float) e.y - yFor (v)) > capH * 0.5f && set)
     {
-        const float top = capH * 0.5f, bottom = (float) getHeight() - capH * 0.5f;
+        const float top = yFor (1.0f), bottom = yFor (0.0f);
         set (juce::jlimit (0.0f, 1.0f, (bottom - (float) e.y) / (bottom - top)));
     }
     dragStart = get ? get() : 0.0f;
@@ -154,7 +160,7 @@ void Fader::mouseDown (const juce::MouseEvent& e)
 
 void Fader::mouseDrag (const juce::MouseEvent& e)
 {
-    const float travel = (float) getHeight() - capH;
+    const float travel = yFor (0.0f) - yFor (1.0f);
     const float fine = e.mods.isShiftDown() || e.mods.isAltDown() ? 0.2f : 1.0f;
     if (set)
         set (juce::jlimit (0.0f, 1.0f, dragStart - (float) e.getDistanceFromDragStartY() / travel * fine));
@@ -164,7 +170,7 @@ void Fader::mouseDrag (const juce::MouseEvent& e)
 void Fader::mouseDoubleClick (const juce::MouseEvent&)
 {
     if (set)
-        set (0.75f); // 0 dB
+        set (law::kFaderUnity); // 0 dB
     refresh();
 }
 
@@ -191,39 +197,67 @@ void PushKey::refresh()
     }
 }
 
+juce::Rectangle<int> PushKey::boundsFor (juce::Rectangle<float> face, Style s)
+{
+    auto b = face.expanded (kMargin);
+    b.setBottom (b.getBottom() + extrusionFor (s));
+    return b.getSmallestIntegerContainer();
+}
+
+juce::Rectangle<float> PushKey::faceArea() const
+{
+    auto r = getLocalBounds().toFloat().reduced (kMargin);
+    r.removeFromBottom (extrusion());
+    return r;
+}
+
 void PushKey::paint (juce::Graphics& g)
 {
     shownLatched = latched ? latched() : false;
     shownLamp = lamp ? lamp() : 0;
+    // an extruded cap seen from above at a slight tilt: its face on top, its walls showing below it down to the panel
+    // (the well round it and its shadow are the panel's). Pushed, or latched in, the face sinks down the walls.
+    const auto rest = faceArea();
+    const float depth = extrusion(), corner = faceCorner();
     const bool in = held || shownLatched;
-    auto b = getLocalBounds().toFloat().reduced (2.0f);
-    // an extruded cap: its sides show below and right, and it sinks when pushed (a latched switch stays in)
-    const float depth = in ? 2.0f : 5.0f;
-    auto face = b.withTrimmedRight (depth * 0.6f).withTrimmedBottom (depth);
-    if (in)
-        face = face.translated (depth * 0.4f, 3.0f);
+    const auto face = rest.translated (0.0f, in ? depth * 0.7f : 0.0f);
+    const bool on = shownLamp > 0;
     const juce::Colour body = style == Style::Dark ? juce::Colour (0xff2b2c30) : style == Style::Transport ? juce::Colour (0xffe8e8e6) : juce::Colour (0xffd9d9d6);
-    // shadow on the panel
-    g.setColour (juce::Colours::black.withAlpha (0.45f));
-    g.fillRoundedRectangle (face.translated (depth * 0.6f + 1.5f, depth + 2.0f), 3.5f);
-    // the side walls
-    g.setColour (style == Style::Dark ? juce::Colour (0xff0e0e10) : body.darker (0.45f));
-    g.fillRoundedRectangle (face.translated (depth * 0.6f, depth), 3.0f);
-    g.setColour (style == Style::Dark ? juce::Colour (0xff18181b) : body.darker (0.25f));
-    g.fillRoundedRectangle (face.translated (depth * 0.3f, depth * 0.5f), 3.0f);
+
+    // a lit key throws a little of its light on the panel round its base
+    if (on)
+    {
+        juce::ColourGradient bloom (lampColour.withAlpha (0.30f), rest.getCentreX(), rest.getBottom(), lampColour.withAlpha (0.0f), rest.getCentreX(),
+                                    rest.getBottom() + depth + kMargin, true);
+        g.setGradientFill (bloom);
+        g.fillRoundedRectangle (rest.expanded (kMargin * 0.8f).withBottom (rest.getBottom() + depth + kMargin * 0.8f), corner + 3.0f);
+    }
+
+    // the walls: the face swept down to where the key meets the panel
+    const auto walls = juce::Rectangle<float> (rest.getX(), face.getY(), rest.getWidth(), rest.getBottom() + depth - face.getY());
+    juce::Colour sideTop = style == Style::Dark ? juce::Colour (0xff3f4045) : body.darker (0.28f);
+    juce::Colour sideBottom = style == Style::Dark ? juce::Colour (0xff141416) : body.darker (0.85f);
+    if (on)
+    {
+        sideTop = sideTop.interpolatedWith (lampColour, 0.35f);
+        sideBottom = sideBottom.interpolatedWith (lampColour, 0.25f);
+    }
+    g.setGradientFill (juce::ColourGradient (sideTop, 0.0f, face.getBottom() - corner, sideBottom, 0.0f, walls.getBottom(), false));
+    g.fillRoundedRectangle (walls, corner);
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.drawRoundedRectangle (walls.reduced (0.25f), corner, 0.6f);
+
     // the face
     const float scale = m::scaleOf (g);
     const int w = juce::roundToInt (face.getWidth() * scale), h = juce::roundToInt (face.getHeight() * scale);
-    juce::Colour top = body;
-    if (shownLamp > 0)
-        top = body.interpolatedWith (lampColour, 0.25f);
-    m::drawAt (g, m::cached ("key" + juce::String (w) + "x" + juce::String (h) + top.toString(), [&] { return m::keyFace (w, h, 3.0f * scale, 2.0f * scale, top); }), face);
-    if (shownLamp > 0)
+    const juce::Colour top = on ? body.interpolatedWith (lampColour, 0.25f) : body;
+    m::drawAt (g, m::cached ("key" + juce::String (w) + "x" + juce::String (h) + top.toString(), [&] { return m::keyFace (w, h, corner * scale, 1.6f * scale, top); }), face);
+    if (on)
     {
         // the lamp behind the translucent cap
         juce::ColourGradient glow (lampColour.withAlpha (0.55f), face.getCentre(), lampColour.withAlpha (0.0f), face.getCentre().translated (face.getWidth() * 0.6f, 0), true);
         g.setGradientFill (glow);
-        g.fillRoundedRectangle (face, 3.0f);
+        g.fillRoundedRectangle (face, corner);
     }
     if (glyph.isNotEmpty())
     {
@@ -242,15 +276,6 @@ void PushKey::paint (juce::Graphics& g)
         }
         else if (glyph == "rec")
             p.addEllipse (juce::Rectangle<float> (s * 1.4f, s * 1.4f).withCentre (c));
-        else if (glyph == "rew" || glyph == "ff")
-        {
-            const float d = glyph == "ff" ? 1.0f : -1.0f;
-            for (int i = 0; i < 2; ++i)
-            {
-                const float x0 = c.x + d * (i == 0 ? -s * 0.9f : 0.0f);
-                p.addTriangle (x0, c.y - s * 0.6f, x0, c.y + s * 0.6f, x0 + d * s * 0.9f, c.y);
-            }
-        }
         g.fillPath (p);
     }
 }
@@ -456,17 +481,16 @@ void MeterView::paint (juce::Graphics& g)
 
 // ======================================================================== JogDial
 
-void JogDial::paint (juce::Graphics& g)
+juce::Rectangle<float> JogDial::knobArea() const
 {
     const float d = std::min ((float) getWidth(), (float) getHeight());
-    auto outer = juce::Rectangle<float> (d, d).withCentre (getLocalBounds().toFloat().getCentre());
-    // the recess, then the knob (a white cap on a ribbed skirt) that turns with angle
-    g.setColour (juce::Colour (0xff060607));
-    g.fillEllipse (outer);
-    g.setColour (juce::Colours::white.withAlpha (0.08f));
-    g.drawEllipse (outer.reduced (1.0f), 1.0f);
-    const auto f = outer.reduced (d * 0.08f).translated (pressed ? 1.0f : 0.0f, pressed ? 1.5f : 0.0f);
-    m::roundShadow (g, f.getCentre(), f.getWidth() * 0.5f, f.getWidth() * 0.18f, 0.7f);
+    return juce::Rectangle<float> (d, d).withCentre (getLocalBounds().toFloat().getCentre()).reduced (d * 0.08f);
+}
+
+void JogDial::paint (juce::Graphics& g)
+{
+    // the knob (a white cap on a ribbed skirt) that turns with the angle; it dips a little when pushed
+    const auto f = knobArea().translated (pressed ? 1.0f : 0.0f, pressed ? 1.5f : 0.0f);
     const float scale = m::scaleOf (g);
     const int px = juce::roundToInt (f.getWidth() * scale);
     const int step = ((int) std::lround (angle / juce::MathConstants<float>::twoPi * 72.0f) % 72 + 72) % 72;

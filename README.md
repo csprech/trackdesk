@@ -100,3 +100,12 @@ open build/Trackdesk_artefacts/Release/Trackdesk.app
 - `src/engine`: the audio device, MIDI, settings, and the card folder.
 - `src/ui`: the panel on a 1500 × 1580 canvas, laid out from the original's measured drawing, and its widgets.
 - `src/plugin`: the processor for hosts.
+
+## A GPUI version (experimental)
+
+The [`gpui` branch](https://github.com/csprech/trackdesk/tree/gpui) has Trackdesk with a [GPUI](https://gpui.rs) front end.
+- The C++ engine and panel stay the same. They sit behind a small C interface.
+- A Rust app draws the panel on the GPU and sends it the mouse and keyboard.
+- Its own README, `gpui/README.md` on that branch, explains how it's built, run and tested.
+
+This branch (`main`) stays the JUCE app.

@@ -1,5 +1,7 @@
 # Trackdesk TD-12
 
+> **This is the `gpui` branch:** Trackdesk with a [GPUI](https://gpui.rs) front end (experimental). [`gpui/README.md`](gpui/README.md) explains how it's built, run and tested. The JUCE app described below still builds from this branch. [`main`](https://github.com/csprech/trackdesk/tree/main) keeps it unchanged.
+
 A desktop 12-track recording console, built for research: an 8-strip mixer with 10 inputs, a 12-track recorder, 16 effects and a master section. Its controls, signal flow, display, menus and recorder behave like the console it studies. That console is the TASCAM Model 12; the [research notes](docs/research.md) cover what it does and where each behaviour comes from.
 
 Trackdesk is original work. It doesn't use TASCAM's names, logos or artwork. "TASCAM" and "Model 12" are trademarks of TEAC Corporation and appear here only to say which console was studied.

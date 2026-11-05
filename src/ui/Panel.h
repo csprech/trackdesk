@@ -13,7 +13,13 @@ namespace trackdesk::ui
 {
 class Panel : public juce::Component, private juce::Timer
 {
+    friend struct GpuiAdapter; // (the GPUI front end drives this panel off-screen: bridge/TrackdeskAdapter.cpp)
+
 public:
+    /** Whether a key is held (the GPUI front end answers this; otherwise the computer's keyboard). */
+    static inline std::function<bool (int)> keyHook;
+    static bool keyIsDown (int c) { return keyHook ? keyHook (c) : juce::KeyPress::isKeyCurrentlyDown (c); }
+
     static constexpr int kWidth = 1500, kHeight = 1580;
     explicit Panel (Engine& engine);
     ~Panel() override;

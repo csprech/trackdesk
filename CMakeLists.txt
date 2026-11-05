@@ -50,6 +50,25 @@ target_link_libraries(Trackdesk PRIVATE
   juce::juce_recommended_warning_flags)
 endif()
 
+# ---------------------------------------------------------------- the GPUI front end's bridge
+# A static library with the console (engine, and the JUCE panel used off-screen as controller and renderer) behind
+# the C interface in bridge/PanelBridge.h. gpui/build.rs builds and links it.
+option(TRACKDESK_BUILD_BRIDGE "Build the bridge for the GPUI front end" OFF)
+if(TRACKDESK_BUILD_BRIDGE)
+  add_library(trackdesk_bridge STATIC ${TRACKDESK_CORE_SOURCES} ${TRACKDESK_UI_SOURCES} src/ui/MainComponent.cpp bridge/PanelBridge.cpp bridge/TrackdeskAdapter.cpp)
+  target_include_directories(trackdesk_bridge PRIVATE src)
+  target_compile_definitions(trackdesk_bridge PRIVATE ${TRACKDESK_JUCE_DEFS} JUCE_STANDALONE_APPLICATION=0
+    JUCE_APPLICATION_NAME_STRING="Trackdesk" JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}")
+  target_link_libraries(trackdesk_bridge PRIVATE
+    juce::juce_audio_utils
+    juce::juce_audio_processors
+    juce::juce_audio_devices
+    juce::juce_audio_formats
+    juce::juce_gui_extra
+    PUBLIC
+    juce::juce_recommended_config_flags)
+endif()
+
 # ---------------------------------------------------------------- tests
 juce_add_console_app(TrackdeskTests PRODUCT_NAME "TrackdeskTests")
 target_sources(TrackdeskTests PRIVATE

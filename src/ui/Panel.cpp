@@ -675,7 +675,7 @@ bool Panel::keyPressed (const juce::KeyPress& key)
 
 bool Panel::keyStateChanged (bool)
 {
-    const bool down = juce::KeyPress::isKeyCurrentlyDown ('\\');
+    const bool down = keyIsDown ('\\');
     if (down != footHeld)
     {
         footHeld = down;

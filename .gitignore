@@ -2,3 +2,5 @@ build/
 build-release/
 external/
 .DS_Store
+build-bridge/
+gpui/target/

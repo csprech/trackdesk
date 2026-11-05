@@ -10,6 +10,8 @@ namespace trackdesk::ui
 {
 class MainComponent : public juce::Component, private juce::Timer
 {
+    friend struct GpuiAdapter;
+
 public:
     explicit MainComponent (Engine& engine);
     ~MainComponent() override;

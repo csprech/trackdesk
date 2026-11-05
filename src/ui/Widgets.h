@@ -21,6 +21,8 @@ void drawText (juce::Graphics& g, const juce::String& text, juce::Rectangle<floa
 
 class Knob : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     Knob (juce::Colour cap, juce::Colour pointer, float defaultValue);
     std::function<float()> get;
@@ -44,6 +46,8 @@ private:
 
 class Fader : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     explicit Fader (juce::Colour cap);
     std::function<float()> get;
@@ -71,6 +75,8 @@ private:
     keys with their lamp. Latching keys show pushed in while they're on. */
 class PushKey : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     enum class Style
     {
@@ -108,6 +114,8 @@ private:
 
 class Led : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     explicit Led (juce::Colour b = juce::Colour (0xff36d65a)) : base (b) { setInterceptsMouseClicks (false, false); }
     /** The colour it shows (transparent when off). */
@@ -123,6 +131,8 @@ private:
 /** A slide switch with 3 positions (MODE: LIVE / PC / MTR; ASSIGN: 9/10 / OFF / MAIN). */
 class Slide3 : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     std::function<int()> get;
     std::function<void (int)> set;
@@ -138,6 +148,8 @@ private:
 /** The 128 x 64 graphic display behind its window, backlit. */
 class LcdView : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     LcdView() { setInterceptsMouseClicks (false, false); }
     std::function<void (Lcd&)> render;
@@ -154,6 +166,8 @@ private:
 /** The MAIN level meter: two columns of 12 LEDs (OL, 15, 10, 6, 3, 0, -2, -4, -7, -10, -20, -30). */
 class MeterView : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     MeterView() { setInterceptsMouseClicks (false, false); }
     void setLevels (float left, float right); // linear peaks
@@ -169,6 +183,8 @@ private:
 /** The MULTI JOG dial: turned by dragging around it (or the scroll wheel), pushed by a click. */
 class JogDial : public juce::Component
 {
+    friend struct GpuiAdapter;
+
 public:
     std::function<void (int)> turn;
     std::function<void()> push, unpush;
